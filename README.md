@@ -20,20 +20,101 @@ UN Comtrade から農水産物・食品（HS 1〜24類）の貿易統計を取�
 
 ## セットアップ
 
+### 1. 必要な環境
+
+| | |
+|---|---|
+| Python | 3.9 以上（動作確認は 3.11 / Anaconda） |
+| ライブラリ | `comtradeapicall` `pandas` `python-dotenv` `jupyterlab` |
+| API キー | UN Comtrade の Premium サブスクリプションキー（32文字） |
+
 ```bash
 pip install comtradeapicall pandas python-dotenv jupyterlab
 ```
 
-UN Comtrade の **Premium サブスクリプションキー**が必要（無料枠では動かない)。
-https://comtradedeveloper.un.org/ で登録し、Profile に表示されるキーを取得する。
+インストール済みか確認する。
 
-キーはノートブックに書かず、外部ファイルに置く。
+```bash
+python -c "import comtradeapicall, pandas, dotenv; print('OK')"
+```
+
+### 2. API キーの取得
+
+**無料枠では動かない。** 無料の preview 系 API は1リクエスト500レコード・1期間のみという制限があり、
+このリポジトリが使う `getFinalData` は 401 を返す。Premium の契約が必要。
+
+1. https://comtradedeveloper.un.org/ でアカウントを登録（メール認証あり）
+2. **Products** タブから Premium 系のプランを **Subscribe**
+3. **Profile** ページに Primary key / Secondary key が表示される
+
+Primary と Secondary は機能が同じで、ローテーション用に2本発行される。どちらを使ってもよい。
+
+所属機関が UN Comtrade の機関契約を持っている場合は、そちら経由で無償で使えることがある。
+図書館や指導教員に確認する価値がある。
+
+> **クォータがある。** Premium でも時間あたりの呼び出し回数に上限があり、
+> 使い切ると 403 が返って復活まで十数時間かかる。全期間の取得は数回に分ける前提で進めること
+> （中断・再開に対応している）。
+
+### 3. キーの登録
+
+**キーはノートブックに直接書かない。** `.ipynb` は実行結果ごと保存されるため、
+共有したりリポジトリに入れた瞬間に漏れる。ホームディレクトリの外部ファイルに置く。
+
+ターミナルで次を実行する（コマンドをそのまま貼り付けて Enter。**キーはこのコマンドには含めない**）。
 
 ```bash
 read -rs "key?Primary key を貼り付けて Enter: " \
   && printf 'export COMTRADE_KEY=%s\n' "$key" > ~/.comtrade_env \
-  && chmod 600 ~/.comtrade_env && unset key
+  && chmod 600 ~/.comtrade_env && unset key && echo "保存しました"
 ```
+
+実行するとプロンプトが出るので、そこでキーを貼り付けて Enter を押す。
+**入力しても画面には何も表示されないが、それが正常。**
+
+`read -rs` を使う理由は3つ。
+
+- `-s` で入力が画面に表示されない
+- 引数ではなく標準入力から受け取るため、`~/.zsh_history` に平文で残らない
+- `unset` でシェル変数からも消える
+
+### 4. 確認
+
+```bash
+source ~/.comtrade_env && echo "長さ: ${#COMTRADE_KEY} 文字"
+```
+
+`長さ: 32 文字` と出れば成功。`0 文字` なら貼り付けが効いていないのでやり直す。
+
+ノートブックは `python-dotenv` でこのファイルを読む（`export ` 接頭辞は自動で解釈される）。
+
+```python
+load_dotenv(Path.home() / ".comtrade_env")
+KEY = (os.environ.get("COMTRADE_KEY") or "").strip()
+```
+
+**JupyterLab を起動したままキーを登録した場合は、カーネルを再起動する**
+（Kernel → Restart Kernel）。起動中のカーネルは古い環境を持っているため読み込まれない。
+
+### 5. リポジトリ管理下に置く場合
+
+`~/.comtrade_env` と `data/` が `.gitignore` に入っていることを確認する。
+このリポジトリの `.gitignore` には既に含めてあるが、**ホームディレクトリ自体が
+git リポジトリになっている環境では別途対応が必要**。
+
+```bash
+grep -qxF '.comtrade_env' ~/.gitignore || echo '.comtrade_env' >> ~/.gitignore
+```
+
+### セットアップでよくつまずく点
+
+| 症状 | 対処 |
+|---|---|
+| `COMTRADE_KEY が未設定` | `source ~/.comtrade_env` を実行、またはカーネル再起動 |
+| `401 invalid subscription key` | 無料枠のキーを使っている。Premium が必要 |
+| `403 Out of call volume quota` | クォータ切れ。十数時間待って再実行すれば続きから走る |
+| `長さ: 0 文字` | キーの貼り付けが効いていない。手順3をやり直す |
+| 学内プロキシ環境 | 各 API 関数に `proxy_url=` 引数を渡す |
 
 ## 使い方
 
