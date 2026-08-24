@@ -1,168 +1,181 @@
 # japan-analysis
 
-UN Comtrade から農水産物・食品（HS 1〜24類）の貿易統計を取得し、日本の輸出に関する分析用変数を作る。
+Retrieves agri-food trade statistics (HS chapters 1–24) from UN Comtrade and builds
+analytical variables on Japan's exports.
 
 | | |
 |---|---|
-| 対象 | HS 1〜24類の6桁コード 1,176件 / 2012〜2025年 / 輸出 / 全報告国 × 全相手国 |
-| 規模 | 12,873,073 行 |
+| Scope | 1,176 six-digit HS codes in chapters 1–24 / 2012–2025 / exports / all reporters × all partners |
+| Size | 12,873,073 rows |
 
-## 構成
+## Contents
 
-| ファイル | 役割 |
+| File | Purpose |
 |---|---|
-| `fetch_ch01-24.ipynb` | データ取得。API から取得し、年ごとファイルまで作る |
-| `build_variables.ipynb` | 変数構築。取得データから分析用の変数を作る |
-| `comtrade_start.ipynb` | 単発の確認用。品目1つを指定して中身を見る |
-| `DESIGN.md` | 設計判断の理由と検証の詳細 |
+| `fetch_ch01-24.ipynb` | Data retrieval. Downloads from the API and produces per-year files |
+| `build_variables.ipynb` | Variable construction. Builds analytical variables from the retrieved data |
+| `comtrade_start.ipynb` | Ad-hoc inspection. Query a single commodity and look at the raw rows |
+| `DESIGN.md` | Design rationale and verification details |
 
-取得データは容量が大きいためリポジトリに含めない。ノートブックを実行すれば再生成できる。
+The retrieved data is large and is **not** committed to this repository. Run the notebooks
+to regenerate it.
 
-## セットアップ
+## Setup
 
-### 1. 必要な環境
+### 1. Requirements
 
 | | |
 |---|---|
-| Python | 3.9 以上（動作確認は 3.11 / Anaconda） |
-| ライブラリ | `comtradeapicall` `pandas` `python-dotenv` `jupyterlab` |
-| API キー | UN Comtrade の Premium サブスクリプションキー（32文字） |
+| Python | 3.9 or later (tested on 3.11 / Anaconda) |
+| Libraries | `comtradeapicall` `pandas` `python-dotenv` `jupyterlab` |
+| API key | A UN Comtrade **Premium** subscription key (32 characters) |
 
 ```bash
 pip install comtradeapicall pandas python-dotenv jupyterlab
 ```
 
-インストール済みか確認する。
+Verify the installation:
 
 ```bash
 python -c "import comtradeapicall, pandas, dotenv; print('OK')"
 ```
 
-### 2. API キーの取得
+### 2. Obtaining an API key
 
-**無料枠では動かない。** 無料の preview 系 API は1リクエスト500レコード・1期間のみという制限があり、
-このリポジトリが使う `getFinalData` は 401 を返す。Premium の契約が必要。
+**The free tier will not work.** The free preview endpoints are capped at 500 records and a
+single period per request, and `getFinalData` — which this repository relies on — returns 401.
+A Premium subscription is required.
 
-1. https://comtradedeveloper.un.org/ でアカウントを登録（メール認証あり）
-2. **Products** タブから Premium 系のプランを **Subscribe**
-3. **Profile** ページに Primary key / Secondary key が表示される
+1. Register an account at https://comtradedeveloper.un.org/ (email verification required)
+2. Under the **Products** tab, subscribe to a Premium plan
+3. Your Primary key and Secondary key appear on the **Profile** page
 
-Primary と Secondary は機能が同じで、ローテーション用に2本発行される。どちらを使ってもよい。
+The two keys are functionally identical; they exist so you can rotate them. Either one works.
 
-所属機関が UN Comtrade の機関契約を持っている場合は、そちら経由で無償で使えることがある。
-図書館や指導教員に確認する価値がある。
+If your institution holds a UN Comtrade institutional subscription, you may be able to use it
+at no cost — worth asking your library or advisor before paying.
 
-> **クォータがある。** Premium でも時間あたりの呼び出し回数に上限があり、
-> 使い切ると 403 が返って復活まで十数時間かかる。全期間の取得は数回に分ける前提で進めること
-> （中断・再開に対応している）。
+> **There is a call quota.** Even on Premium, the number of calls per time window is limited.
+> Once exhausted, the API returns 403 and the quota takes on the order of a dozen hours to
+> replenish. Plan on retrieving the full period across several sessions; the notebook supports
+> stopping and resuming.
 
-### 3. キーの登録
+### 3. Registering the key
 
-**キーはノートブックに直接書かない。** `.ipynb` は実行結果ごと保存されるため、
-共有したりリポジトリに入れた瞬間に漏れる。ホームディレクトリの外部ファイルに置く。
+**Do not put the key in a notebook.** A `.ipynb` file is saved together with its cell outputs,
+so the key leaks the moment you share the file or commit it. Keep it in a separate file in your
+home directory.
 
-ターミナルで次を実行する（コマンドをそのまま貼り付けて Enter。**キーはこのコマンドには含めない**）。
+Run the following in a terminal. Paste the command as-is — **the key itself is not part of the
+command**:
 
 ```bash
-read -rs "key?Primary key を貼り付けて Enter: " \
+read -rs "key?Paste your Primary key and press Enter: " \
   && printf 'export COMTRADE_KEY=%s\n' "$key" > ~/.comtrade_env \
-  && chmod 600 ~/.comtrade_env && unset key && echo "保存しました"
+  && chmod 600 ~/.comtrade_env && unset key && echo "saved"
 ```
 
-実行するとプロンプトが出るので、そこでキーを貼り付けて Enter を押す。
-**入力しても画面には何も表示されないが、それが正常。**
+A prompt appears; paste the key there and press Enter. **Nothing is echoed to the screen while
+you type — that is expected.**
 
-`read -rs` を使う理由は3つ。
+Three reasons for `read -rs`:
 
-- `-s` で入力が画面に表示されない
-- 引数ではなく標準入力から受け取るため、`~/.zsh_history` に平文で残らない
-- `unset` でシェル変数からも消える
+- `-s` keeps the input from being displayed
+- the value arrives on stdin rather than as an argument, so it is not written to `~/.zsh_history`
+- `unset` clears it from the shell variable afterwards
 
-### 4. 確認
+### 4. Verifying
 
 ```bash
-source ~/.comtrade_env && echo "長さ: ${#COMTRADE_KEY} 文字"
+source ~/.comtrade_env && echo "length: ${#COMTRADE_KEY} characters"
 ```
 
-`長さ: 32 文字` と出れば成功。`0 文字` なら貼り付けが効いていないのでやり直す。
+`length: 32 characters` means it worked. `0 characters` means the paste did not take effect —
+repeat step 3.
 
-ノートブックは `python-dotenv` でこのファイルを読む（`export ` 接頭辞は自動で解釈される）。
+The notebooks read this file via `python-dotenv` (the `export ` prefix is handled automatically):
 
 ```python
 load_dotenv(Path.home() / ".comtrade_env")
 KEY = (os.environ.get("COMTRADE_KEY") or "").strip()
 ```
 
-**JupyterLab を起動したままキーを登録した場合は、カーネルを再起動する**
-（Kernel → Restart Kernel）。起動中のカーネルは古い環境を持っているため読み込まれない。
+**If JupyterLab was already running when you registered the key, restart the kernel**
+(Kernel → Restart Kernel). A running kernel holds the old environment and will not see the
+new variable.
 
-### 5. リポジトリ管理下に置く場合
+### 5. If you keep this under version control
 
-`~/.comtrade_env` と `data/` が `.gitignore` に入っていることを確認する。
-このリポジトリの `.gitignore` には既に含めてあるが、**ホームディレクトリ自体が
-git リポジトリになっている環境では別途対応が必要**。
+Make sure `~/.comtrade_env` and `data/` are ignored. This repository's `.gitignore` already
+covers them, but **if your home directory is itself a git repository, you need to handle that
+separately**:
 
 ```bash
 grep -qxF '.comtrade_env' ~/.gitignore || echo '.comtrade_env' >> ~/.gitignore
 ```
 
-### セットアップでよくつまずく点
+### Common setup problems
 
-| 症状 | 対処 |
+| Symptom | What to do |
 |---|---|
-| `COMTRADE_KEY が未設定` | `source ~/.comtrade_env` を実行、またはカーネル再起動 |
-| `401 invalid subscription key` | 無料枠のキーを使っている。Premium が必要 |
-| `403 Out of call volume quota` | クォータ切れ。十数時間待って再実行すれば続きから走る |
-| `長さ: 0 文字` | キーの貼り付けが効いていない。手順3をやり直す |
-| 学内プロキシ環境 | 各 API 関数に `proxy_url=` 引数を渡す |
+| `COMTRADE_KEY is not set` | Run `source ~/.comtrade_env`, or restart the kernel |
+| `401 invalid subscription key` | You are using a free-tier key. Premium is required |
+| `403 Out of call volume quota` | Quota exhausted. Wait for it to replenish, then re-run — it resumes where it stopped |
+| `length: 0 characters` | The key was not pasted. Repeat step 3 |
+| Behind an institutional proxy | Pass `proxy_url=` to the API functions |
 
-## 使い方
+## Usage
 
-### 1. データ取得
+### 1. Retrieve the data
 
-`fetch_ch01-24.ipynb` を開き、設定セル（セクション2）を確認して上から順に実行する。
+Open `fetch_ch01-24.ipynb`, check the configuration cell (section 2), and run the cells in order.
 
 ```python
 YEARS    = [str(y) for y in range(2012, 2026)]
-FLOW     = "X"                                     # 輸出
-CHAPTERS = [f"{i:02d}" for i in range(1, 25)]      # 1〜24類
-PARTNER  = None                                    # 全相手国
+FLOW     = "X"                                     # exports
+CHAPTERS = [f"{i:02d}" for i in range(1, 25)]      # chapters 1–24
+PARTNER  = None                                    # all partners
 ```
 
-**中断しても、同じセルを再実行すれば続きから走る。** API のクォータ切れでも進捗を表示して止まるだけなので、
-復活後に再実行すればよい。
+**If it stops partway, just re-run the same cell — it continues from where it left off.**
+Running out of API quota is not an error either: the notebook prints the progress and halts,
+so you re-run it once the quota is back.
 
-出力：
+Output:
 
 ```
-data/ex_ch01-24_2012-2025_allp/ch{類}_{年}.csv.gz   336ブロック
-data/by_year_allp/trade_{年}.csv.gz                 年ごと14ファイル（セクション7）
+data/ex_ch01-24_2012-2025_allp/ch{chapter}_{year}.csv.gz   336 blocks
+data/by_year_allp/trade_{year}.csv.gz                      14 per-year files (section 7)
 ```
 
-### 2. 変数構築
+### 2. Build the variables
 
-`build_variables.ipynb` を上から順に実行する。
+Run `build_variables.ipynb` from the top.
 
-| 変数名 | 定義 |
+| Variable | Definition |
 |---|---|
-| `japancountry` | 日本から輸入国 *m* への輸出額の合計 |
-| `worldcountry` | 世界各国から *m* への総輸出額（*m* の輸入市場規模） |
-| `japanx` | 日本が *m* へ輸出している品目に限定した、世界各国から *m* への輸出額 |
+| `japancountry` | Total value of Japan's exports to importing country *m* |
+| `worldcountry` | Total value of exports from all countries to *m* (the size of *m*'s import market) |
+| `japanx` | Exports from all countries to *m*, restricted to the commodities Japan actually ships to *m* |
 
-いずれも年 × 相手国。定義上 `japancountry ≤ japanx ≤ worldcountry` が成り立ち、ノートブックが検査する。
+All three are indexed by year × partner country. By construction
+`japancountry ≤ japanx ≤ worldcountry` must hold, and the notebook checks it.
 
-出力は `data/variables/` に3形式（年ごと / 横持ち / 縦持ち）。
+Output goes to `data/variables/` in three shapes (per-year, wide, long).
 
-## 注意点
+## Notes
 
-- **読み込みには `dtype` 指定が必須。** 省くと `0201` が `201` になり品目コードが壊れる。
+- **`dtype` must be specified when reading.** Without it `0201` becomes `201` and the commodity
+  codes are corrupted.
 
   ```python
   pd.read_csv(path, dtype={"cmdCode": str, "classificationCode": str})
   ```
 
-- **輸出額は `fobvalue` または `primaryValue` を使う。** `cifvalue` は輸出データではほぼ空。
-- **直近年は報告が出揃っていない。** 報告国数は2023年165 → 2024年138 → 2025年93。時系列比較では過小評価になる。
-- **`partnerDesc == "World"` は全世界合計。** 個別相手国と足すと二重計上になる。
+- **Use `fobvalue` or `primaryValue` for export values.** `cifvalue` is almost entirely empty in
+  export data.
+- **Recent years are incomplete.** The number of reporting countries falls from 165 in 2023 to
+  138 in 2024 and 93 in 2025, so year-over-year comparisons understate the latest figures.
+- **`partnerDesc == "World"` is an aggregate row.** Adding it to individual partners double-counts.
 
-詳細は [`DESIGN.md`](DESIGN.md) を参照。
+See [`DESIGN.md`](DESIGN.md) for details.
