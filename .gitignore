@@ -1,0 +1,23 @@
+# 認証情報 — 絶対にコミットしない
+.env
+*.env
+.comtrade_env
+
+# 取得データ（数GB。fetch_ch01-24.ipynb で再生成できる）
+data/
+trade_data/
+by_year*/
+*.csv
+*.tsv
+*.gz
+*.zip
+*.xlsx
+*.parquet
+
+# ノートブックの実行結果・キャッシュ
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
