@@ -13,10 +13,12 @@ UN Comtradeのデータから、日本の輸出額と外延・内延マージン
 年別CSVがすでにあれば、2だけで分析できます。
 データ本体とAPIキーはGitに含めていません。GitHubからコードを取得しただけではデータはありません。
 
-## 環境の準備（macOS）
+## 環境の準備（macOS / Windows）
 
-Python 3.11以降を想定しています。ターミナルでプロジェクトのフォルダへ移動して実行します。
-別のPCでは `cd` のパスを保存先に読み替えてください。
+Python 3.11以降を想定しています。OSに合った手順で、プロジェクトのフォルダから実行します。
+`cd` のパスは自分の保存先に読み替えてください。Windows実機での動作確認は未実施です。
+
+### macOS（ターミナル）
 
 ```bash
 cd /Users/nakasukadaiki/projects/comtrade
@@ -27,6 +29,34 @@ python -m jupyterlab
 ```
 
 ターミナルを開き直したら、同じフォルダで `source .venv/bin/activate` を実行します。
+### Windows（PowerShell）
+
+Python 3.11以降をインストールし、PowerShellを開きます。
+次の例では `C:\Users\YourName\projects\comtrade` にコードがあるものとします。
+
+```powershell
+cd "C:\Users\YourName\projects\comtrade"
+py -3 --version
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m jupyterlab
+```
+
+`py` が見つからない場合は、`python --version` で3.11以降と確認できれば、
+最初の2つの `py -3` を `python` に置き換えられます。
+
+仮想環境内のPythonを直接指定しているため、`Activate.ps1` の実行や実行ポリシーの変更は不要です。
+この使い方は [Python公式のvenv説明](https://docs.python.org/3/library/venv.html#how-venvs-work) に沿っています。
+次回からは同じフォルダで次を実行するだけで起動できます。
+
+```powershell
+.\.venv\Scripts\python.exe -m jupyterlab
+```
+
+macOSの `.venv` はWindowsへコピーせず、Windows側で作成してください。
+
+### 共通：ノートブックを開く
+
 既存のAnaconda環境を利用する場合は、その環境に必要なライブラリをインストールできます。
 ライブラリのバージョンはまだ固定していません。
 
@@ -60,6 +90,12 @@ SOURCE_DIR = BLOCK_DIR
 - APIから取得する：`True` にして実行します。保存済みブロックはスキップします。
 - ブロックの保存先が異なる：`SOURCE_DIR = Path("保存場所")` に変更します。
 
+Windowsで入力フォルダを指定する場合、ノートブック内では `/` を使うと書きやすくなります。
+
+```python
+SOURCE_DIR = Path("C:/Users/YourName/projects/comtrade/data/blocks")
+```
+
 標準のブロック保存先は `data/ex_ch01-24_2000-2025_allp/` です。
 その直下に `ch01_2000.csv.gz` などの624ファイル（24類×26年）が必要です。
 ZIPの場合は先に展開してください。ZIPを置くだけでは読み込みません。
@@ -81,7 +117,18 @@ API利用枠で中断した場合は、枠の回復後に不足ブロックを�
 COMTRADE_KEY=ここを自分のキーに置き換える
 ```
 
-保存後に `chmod 600 ~/.comtrade_env` を実行してください。
+**macOS**：保存先は `~/.comtrade_env` です。保存後に `chmod 600 ~/.comtrade_env` を実行します。
+
+**Windows**：保存先はユーザーフォルダの `.comtrade_env`（通常は `C:\Users\YourName\.comtrade_env`）です。
+PowerShellで次を実行すると、Pythonが参照する保存先を確認できます。
+
+```powershell
+.\.venv\Scripts\python.exe -c "from pathlib import Path; print(Path.home() / '.comtrade_env')"
+```
+
+メモ帳で「名前を付けて保存」を選び、ファイルの種類を「すべてのファイル」、
+文字コードを「UTF-8」（BOMなし）にして保存してください。
+ファイル名が `.comtrade_env.txt` にならないようにします。Windowsでは `chmod` は使いません。
 既存の `export COMTRADE_KEY=...` 形式も利用できます。変更後はカーネルを再起動します。
 
 ## 2. 変数作成・EM/IM分析
@@ -123,7 +170,7 @@ COMTRADE_KEY=ここを自分のキーに置き換える
 
 | 状況 | 対応 |
 |---|---|
-| ライブラリが見つからない | 利用中の環境で `python -m pip install -r requirements.txt` を実行 |
+| ライブラリが見つからない | macOSは `python -m pip install -r requirements.txt`、Windowsは `.\.venv\Scripts\python.exe -m pip install -r requirements.txt` を実行 |
 | `settings` / `lib` が見つからない | プロジェクトのフォルダからJupyterLabを起動し、ノートブックを移動しない |
 | ブロックが不足している | 設定した年・展開先・`SOURCE_DIR` を確認 |
 | 年別ファイルがない | 01を完了してから02を実行 |
