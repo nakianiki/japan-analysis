@@ -3,7 +3,7 @@
 *.env
 .comtrade_env
 
-# 取得データ（数GB。fetch_ch01-24.ipynb で再生成できる）
+# 取得データ（数GB。01_prepare_data.ipynb で再生成できる）
 data/
 trade_data/
 by_year*/
@@ -21,3 +21,10 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# ローカルの Python 仮想環境
+.venv/
+
+# 検証コードと統合前のバックアップはローカルのみ
+tests/
+.local_archive/

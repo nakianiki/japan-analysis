@@ -1,0 +1,6 @@
+# ノートブックで直接利用するライブラリ
+comtradeapicall
+pandas
+numpy
+python-dotenv
+jupyterlab
