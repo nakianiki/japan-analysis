@@ -10,6 +10,12 @@ UN Comtradeのデータから、日本の輸出額と外延・内延マージン
 | 1 | `01_prepare_data.ipynb` | API取得（必要な場合）→ 年別結合 | `data/by_year_allp/trade_2000.csv.gz` など |
 | 2 | `02_analyze_trade.ipynb` | 3変数作成 → EM/IM計算 → 検算・保存 | `data/variables/margins.csv` など |
 
+補足：次のノートブックは必要な場合だけ使用します。
+
+| ノートブック | 内容 |
+|---|---|
+| `extract_world.ipynb` | 任意：取得済みブロックからWorld行を抽出 |
+
 年別CSVがすでにあれば、2だけで分析できます。
 データ本体とAPIキーはGitに含めていません。GitHubからコードを取得しただけではデータはありません。
 
