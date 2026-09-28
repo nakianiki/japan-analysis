@@ -28,3 +28,8 @@ __pycache__/
 # 検証コードと統合前のバックアップはローカルのみ
 tests/
 .local_archive/
+
+# ローカル調査の応答と実行ログ
+debug_*.json
+*.log
+.estat_env

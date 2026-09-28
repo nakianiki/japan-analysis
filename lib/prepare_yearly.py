@@ -9,6 +9,39 @@ import pandas as pd
 from settings import BLOCK_DIR, CHAPTERS, YEAR_DIR, YEARS
 
 
+def prepare_year_from_csv(source, destination, year, chapters=CHAPTERS):
+    """結合済みCSV（gzip可）から指定年だけを抽出し、完成後に保存する。"""
+    source, destination = Path(source), Path(destination)
+    year = str(year)
+    chapters = set(chapters)
+    destination.mkdir(parents=True, exist_ok=True)
+    output = destination / f"trade_{year}.csv.gz"
+    if source.resolve() == output.resolve():
+        raise ValueError("入力CSVと出力CSVは別のファイルを指定してください。")
+    fd, temporary = tempfile.mkstemp(dir=destination, suffix=".csv.gz")
+    os.close(fd)
+    count, seen_chapters = 0, set()
+    try:
+        with gzip.open(temporary, "wt", encoding="utf-8-sig", newline="") as stream:
+            # 全文を最後まで読み、gzipの破損も検出してから既存出力を置換する。
+            for chunk in pd.read_csv(source, dtype=str, keep_default_na=False,
+                                     encoding="utf-8-sig", chunksize=300_000):
+                selected = chunk.loc[chunk["refYear"].eq(year)
+                                     & chunk["cmdCode"].str[:2].isin(chapters)]
+                if selected.empty:
+                    continue
+                selected.to_csv(stream, index=False, header=count == 0)
+                count += len(selected)
+                seen_chapters.update(selected["cmdCode"].str[:2])
+        if not count or seen_chapters != chapters:
+            raise ValueError(f"{year}年の元データが不足しています。未確認の類: {sorted(chapters - seen_chapters)}")
+        os.replace(temporary, output)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+    print(f"{year}: {count:,} 行 → {output}")
+    return count
+
+
 def prepare_yearly(source=BLOCK_DIR, destination=YEAR_DIR, years=YEARS, chapters=CHAPTERS):
     """全ブロックを確認してから、年別CSVを再作成する。
 
